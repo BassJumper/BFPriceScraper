@@ -66,6 +66,7 @@
             var rows = (await sreader.ReadToEndAsync()).Split(Environment.NewLine.ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
             for (int i = 0; i < rows.Length; i++)
             {
+                if (i == 0) continue;
                 var product = new Product();
                 var record = rows[i].Split(',');
                 if (!string.IsNullOrWhiteSpace(record[0]))
@@ -91,16 +92,21 @@
         foreach (var product in _products)
         {
             product.BFExtractedPrice = await ExtractPrice(product.BFUrl, "<span class=\"price-item price-item--regular\"", "\n", removeVAT: true);
-            product.Competitor1ExtractedPrice = await ExtractPrice(product.Competitor1Url, "<span class=\"woocommerce-Price-currencySymbol\">", "</bdi>", 8, variation: product.Competitor1Variation);
-            if (product.Comptetitor2Url.Contains("/fencing/"))
+            if (!string.IsNullOrWhiteSpace(product.Competitor1Url))
             {
-                product.Competitor2ExtractedPrice = await ExtractMCFencePanelPrice(product.Comptetitor2Url, variation: product.Competitor2Variation);
+                product.Competitor1ExtractedPrice = await ExtractPrice(product.Competitor1Url, "<span class=\"woocommerce-Price-currencySymbol\">", "</bdi>", 8, variation: product.Competitor1Variation);
             }
-            else
+            if (!string.IsNullOrWhiteSpace(product.Comptetitor2Url))
             {
-                product.Competitor2ExtractedPrice = await ExtractPrice(product.Comptetitor2Url, "<span class=\"price-excluding-tax\">", " ", variation: product.Competitor2Variation);
+                if (product.Comptetitor2Url.Contains("/fencing/"))
+                {
+                    product.Competitor2ExtractedPrice = await ExtractMCFencePanelPrice(product.Comptetitor2Url, variation: product.Competitor2Variation);
+                }
+                else
+                {
+                    product.Competitor2ExtractedPrice = await ExtractPrice(product.Comptetitor2Url, "<span class=\"price-excluding-tax\">", " ", variation: product.Competitor2Variation);
+                }
             }
-            product.Competitor2ExtractedPrice = await ExtractPrice(product.Comptetitor2Url, "<span class=\"price-excluding-tax\">", " ", variation: product.Competitor2Variation);
             _output.Add("BF: " + product.BFExtractedPrice + " - " + "ESM: " + product.Competitor1ExtractedPrice + " - " + "MC: TODO" + product.Competitor2ExtractedPrice);
         }
         _extractingText = "Done - See Output Below";
@@ -129,13 +135,15 @@
 
     private Task<string> ExtractMCFencePanelPrice(string url, string variation)
     {
-        IWebDriver driver = new ChromeDriver();
-        driver.Navigate().GoToUrl("https://www.manninghamconcrete.co.uk/fencing-decking/fencing/panels-gates/omega-lattice-top-fence-panel");
+        var chromeOptions = new ChromeOptions();
+        //chromeOptions.AddArguments(new List<string>() { "--silent-launch", "--no-startup-window", "no-sandbox", "headless",});
+        IWebDriver driver = new ChromeDriver(chromeOptions);
+        driver.Navigate().GoToUrl(url);
         var element = driver.FindElement(By.Id("attribute173"));
         var dropdown = new SelectElement(element);
-        dropdown.SelectByText("1.5 meter (5ft)");
+        dropdown.SelectByText(variation);
         var priceSpan = driver.FindElement(By.Id("price-excluding-tax-42094"));
-        var price = priceSpan.GetAttribute("innerHTML");
+        var price = priceSpan.GetAttribute("innerHTML").Substring(1);
         driver.Quit();
         return Task.FromResult(price);
     }
