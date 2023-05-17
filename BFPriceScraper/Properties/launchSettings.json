@@ -1,0 +1,30 @@
+{
+  "iisSettings": {
+    "windowsAuthentication": false,
+    "anonymousAuthentication": true,
+    "iisExpress": {
+      "applicationUrl": "http://localhost:54718",
+      "sslPort": 44300
+    }
+  },
+  "profiles": {
+    "BFPriceScraper": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "launchUrl": "selenium",
+      "applicationUrl": "https://localhost:7118;http://localhost:5204",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "dotnetRunMessages": true
+    },
+    "IIS Express": {
+      "commandName": "IISExpress",
+      "launchBrowser": true,
+      "launchUrl": "selenium",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

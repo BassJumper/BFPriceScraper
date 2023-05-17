@@ -1,0 +1,30 @@
+﻿@page "/selenium"
+@using OpenQA.Selenium;
+@using OpenQA.Selenium.Chrome;
+@using OpenQA.Selenium.Support.UI;
+
+<PageTitle>Selenium Test Page</PageTitle>
+
+<h1>MC Fence Panels Extract Text</h1>
+
+<button class="btn btn-primary" @onclick="Test">Click to Test</button>
+
+<p role="status" style="font-size: 40px; margin-top: 20px; font-weight: bold; color: orange;">@testStatus</p>
+
+@code {
+    private string testStatus;
+
+    private void Test()
+    {
+        IWebDriver driver = new ChromeDriver();
+        driver.Navigate().GoToUrl("https://www.manninghamconcrete.co.uk/fencing-decking/fencing/panels-gates/omega-lattice-top-fence-panel");
+        var element = driver.FindElement(By.Id("attribute173"));
+        var dropdown = new SelectElement(element);
+        dropdown.SelectByText("1.5 meter (5ft)");
+        var priceSpan = driver.FindElement(By.Id("price-excluding-tax-42094"));
+        var price = priceSpan.GetAttribute("innerHTML");
+        testStatus = price;
+        driver.Quit();
+    }
+}
+

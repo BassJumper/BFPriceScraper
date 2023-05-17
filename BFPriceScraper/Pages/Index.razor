@@ -1,0 +1,214 @@
+﻿@page "/"
+@using BFPriceScraper.Models
+@using System.Net.Http.Headers
+@using System.Globalization
+@using CsvHelper.Configuration;
+@using Microsoft.AspNetCore.Mvc
+@using CsvHelper
+@using System.Text;
+@using OpenQA.Selenium;
+@using OpenQA.Selenium.Chrome;
+@using OpenQA.Selenium.Support.UI;
+@inject NavigationManager Nav
+@inject StateContainer State
+@inject IJSRuntime JS
+
+<PageTitle>BF Price Extractor</PageTitle>
+
+<h1>BF Price Extractor</h1>
+<p>Upload your CSV and click RUN - once completed the output csv file will be downloaded to your browser.</p>
+<InputFile OnChange="@LoadFiles" multiple />
+<br />
+<br />
+
+<p>@_extractingText</p>
+
+@if (_products.Any() && !_extracting)
+{
+    <h3>Import Preview</h3>
+    <ul>
+        @foreach (var product in _products)
+        {
+            <li>@product.ProductId - @product.BFUrl</li>
+        }
+    </ul>
+}
+<br />
+<br />
+<button @onclick="@(() => Run())" disabled="@(!_products.Any())">RUN</button>
+<br />
+<br />
+
+@if (_output.Any() && !_extracting)
+{
+    <h3>Extraction Preview - Click download button below to download CSV</h3>
+    <ul>
+        @foreach (var output in _output)
+        {
+            <li>@output</li>
+        }
+    </ul>
+}
+
+@code {
+    bool _csvNotLoaded = true;
+    bool _extracting;
+    string _extractingText = "Upload file and click Run.  Simples.";
+    List<Product> _products = new List<Product>();
+    List<string> _output = new List<string>();
+
+    private async Task LoadFiles(InputFileChangeEventArgs e)
+    {
+        var uploadedFiles = e.GetMultipleFiles();
+        var csvFile = uploadedFiles[0];
+        using (var sreader = new StreamReader(csvFile.OpenReadStream()))
+        {
+            var rows = (await sreader.ReadToEndAsync()).Split(Environment.NewLine.ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
+            for (int i = 0; i < rows.Length; i++)
+            {
+                var product = new Product();
+                var record = rows[i].Split(',');
+                if (!string.IsNullOrWhiteSpace(record[0]))
+                {
+                    product.ProductId = record[0].ToString();
+                    product.BFUrl = record[1].ToString();
+                    product.Competitor1Url = record[2].ToString();
+                    product.Competitor1Variation = record[3].ToString();
+                    product.Comptetitor2Url = record[4].ToString();
+                    product.Competitor2Variation = record[5].ToString();
+                    _products.Add(product);
+                }
+            }
+        }
+        _csvNotLoaded = false;
+    }
+
+    private async Task Run()
+    {
+        _extracting = true;
+        _extractingText = "Fetching prices - please wait...";
+        StateHasChanged();
+        foreach (var product in _products)
+        {
+            product.BFExtractedPrice = await ExtractPrice(product.BFUrl, "<span class=\"price-item price-item--regular\"", "\n", removeVAT: true);
+            product.Competitor1ExtractedPrice = await ExtractPrice(product.Competitor1Url, "<span class=\"woocommerce-Price-currencySymbol\">", "</bdi>", 8, variation: product.Competitor1Variation);
+            if (product.Comptetitor2Url.Contains("/fencing/"))
+            {
+                product.Competitor2ExtractedPrice = await ExtractMCFencePanelPrice(product.Comptetitor2Url, variation: product.Competitor2Variation);
+            }
+            else
+            {
+                product.Competitor2ExtractedPrice = await ExtractPrice(product.Comptetitor2Url, "<span class=\"price-excluding-tax\">", " ", variation: product.Competitor2Variation);
+            }
+            product.Competitor2ExtractedPrice = await ExtractPrice(product.Comptetitor2Url, "<span class=\"price-excluding-tax\">", " ", variation: product.Competitor2Variation);
+            _output.Add("BF: " + product.BFExtractedPrice + " - " + "ESM: " + product.Competitor1ExtractedPrice + " - " + "MC: TODO" + product.Competitor2ExtractedPrice);
+        }
+        _extractingText = "Done - See Output Below";
+        await FileUtil.SaveAs(JS, "testoutput2.csv", GetCSVOutputFileBytes());
+        _products.Clear();
+        _extracting = false;
+
+        StateHasChanged();
+    }
+
+    private byte[] GetCSVOutputFileBytes()
+    {
+        var list = _products;
+        var config = new CsvConfiguration(CultureInfo.CurrentCulture) { Delimiter = ",", Encoding = Encoding.UTF8 };
+        var memoryStream = new MemoryStream();
+        using (var writer = new StreamWriter(memoryStream, leaveOpen: true))
+        {
+            using (var csv = new CsvWriter(writer, config))
+            {
+                csv.WriteRecords(list);
+            }
+        }
+        memoryStream.Seek(0, SeekOrigin.Begin);
+        return memoryStream.ToArray();
+    }
+
+    private Task<string> ExtractMCFencePanelPrice(string url, string variation)
+    {
+        IWebDriver driver = new ChromeDriver();
+        driver.Navigate().GoToUrl("https://www.manninghamconcrete.co.uk/fencing-decking/fencing/panels-gates/omega-lattice-top-fence-panel");
+        var element = driver.FindElement(By.Id("attribute173"));
+        var dropdown = new SelectElement(element);
+        dropdown.SelectByText("1.5 meter (5ft)");
+        var priceSpan = driver.FindElement(By.Id("price-excluding-tax-42094"));
+        var price = priceSpan.GetAttribute("innerHTML");
+        driver.Quit();
+        return Task.FromResult(price);
+    }
+
+    private async Task<string> ExtractPrice(string url, string extractionLocator, string extractionDelimiter, int pricePosition = 1, string variation = null, bool removeVAT = false)
+    {
+        try
+        {
+            var httpClient = new HttpClient();
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            var productValue = new ProductInfoHeaderValue("ScraperBot", "1.0");
+            var commentValue = new ProductInfoHeaderValue("(+http://www.API.com/ScraperBot.html)");
+            request.Headers.UserAgent.Add(productValue);
+            request.Headers.UserAgent.Add(commentValue);
+            var response = await httpClient.SendAsync(request);
+            string html = await response.Content.ReadAsStringAsync();
+            if (!string.IsNullOrWhiteSpace(variation) && url.Contains("estatesawmills"))
+            {
+                bool found = false;
+                while (found == false)
+                {
+                    var variationItem = html.Substring(html.IndexOf("variation-sing__name"), 250);
+                    if (variationItem.Contains(variation))
+                    {
+                        html = html.Substring(html.IndexOf("variation-sing__name"), html.Length - html.IndexOf("variation-sing__name"));
+                        found = true;
+                    }
+                    else
+                    {
+                        html = html.Substring(html.IndexOf("variation-sing__name"), html.Length - html.IndexOf("variation-sing__name"));
+                        html = html.Substring(250, html.Length - 280);
+                    }
+                }
+            }
+            if (!string.IsNullOrWhiteSpace(variation) && url.Contains("manninghamconcrete"))
+            {
+                bool found = false;
+                while (found == false)
+                {
+                    var variationItem = html.Substring(html.IndexOf("name-wrapper"), 250);
+                    if (variationItem.Contains(variation))
+                    {
+                        html = html.Substring(html.IndexOf("name-wrapper"), html.Length - html.IndexOf("name-wrapper"));
+                        found = true;
+                    }
+                    else
+                    {
+                        html = html.Substring(html.IndexOf("name-wrapper"), html.Length - html.IndexOf("name-wrapper"));
+                        html = html.Substring(250, html.Length - 280);
+                    }
+                }
+            }
+            if (!string.IsNullOrWhiteSpace(variation))
+            {
+                html = html.Substring(html.IndexOf(variation.Replace("\\\"", "\"")), html.Length - html.IndexOf(variation.Replace("\\\"", "\"")));
+            }
+            var extractionSnippet = html.Substring(html.IndexOf(extractionLocator), 500);
+            extractionSnippet = extractionSnippet.Replace("&pound;", "£");
+            var priceSnippet = extractionSnippet.Substring(extractionSnippet.IndexOf("£") + pricePosition, 12);
+            var price = priceSnippet.Substring(0, priceSnippet.IndexOf(extractionDelimiter));
+            if (removeVAT && double.TryParse(price, out double amount))
+            {
+                price = Math.Round(amount / 1.2, 2).ToString("N2");
+            }
+            return price;
+        }
+        catch (IndexOutOfRangeException)
+        {
+            return "Could not find variant: " + variation;
+        }
+        catch (Exception ex)
+        {
+            return $"Unexpected Error extracting {url} {variation} - " + ex.Message;
+        }
+    }
+}
