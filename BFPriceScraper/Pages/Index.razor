@@ -9,6 +9,7 @@
 @using OpenQA.Selenium;
 @using OpenQA.Selenium.Chrome;
 @using OpenQA.Selenium.Support.UI;
+@using System.Text.RegularExpressions;
 @inject NavigationManager Nav
 @inject StateContainer State
 @inject IJSRuntime JS
@@ -91,21 +92,22 @@
         StateHasChanged();
         foreach (var product in _products)
         {
-            product.BFExtractedPrice = await ExtractPrice(product.BFUrl, "<span class=\"price-item price-item--regular\"", "\n", removeVAT: true);
+            //product.BFExtractedPrice = await ExtractPrice(product.BFUrl, "<span class=\"price-item price-item--regular\"", "\n", removeVAT: true);
             if (!string.IsNullOrWhiteSpace(product.Competitor1Url))
             {
-                product.Competitor1ExtractedPrice = await ExtractPrice(product.Competitor1Url, "<span class=\"woocommerce-Price-currencySymbol\">", "</bdi>", 8, variation: product.Competitor1Variation);
+                //product.Competitor1ExtractedPrice = await ExtractPrice(product.Competitor1Url, "<span class=\"woocommerce-Price-currencySymbol\">", "</bdi>", 8, variation: product.Competitor1Variation);
             }
             if (!string.IsNullOrWhiteSpace(product.Comptetitor2Url))
             {
-                if (product.Comptetitor2Url.Contains("/fencing/"))
+                product.Competitor2ExtractedPrice = await ExtractPrice(product.Comptetitor2Url, "<span class=\"price-excluding-tax\">", " ", variation: product.Competitor2Variation);
+                try
                 {
-                    product.Competitor2ExtractedPrice = await ExtractMCFencePanelPrice(product.Comptetitor2Url, variation: product.Competitor2Variation);
+                    if (string.IsNullOrWhiteSpace(product.Competitor2ExtractedPrice) || product.Competitor2ExtractedPrice.ToLower().Contains("error"))
+                    {
+                        product.Competitor2ExtractedPrice = await ExtractMCFencePanelPrice(product.Comptetitor2Url, variation: product.Competitor2Variation);
+                    }
                 }
-                else
-                {
-                    product.Competitor2ExtractedPrice = await ExtractPrice(product.Comptetitor2Url, "<span class=\"price-excluding-tax\">", " ", variation: product.Competitor2Variation);
-                }
+                catch { }
             }
             _output.Add("BF: " + product.BFExtractedPrice + " - " + "ESM: " + product.Competitor1ExtractedPrice + " - " + "MC: TODO" + product.Competitor2ExtractedPrice);
         }
@@ -181,6 +183,10 @@
             if (!string.IsNullOrWhiteSpace(variation) && url.Contains("manninghamconcrete"))
             {
                 bool found = false;
+                //variation = variation.Replace("\\\"", "\"");
+                //variation = variation.Substring(1, variation.Length-5);
+                if (html.Contains("The page you requested was not found"))
+                    return "PAGE NOT FOUND";
                 while (found == false)
                 {
                     var variationItem = html.Substring(html.IndexOf("name-wrapper"), 250);
@@ -198,9 +204,9 @@
             }
             if (!string.IsNullOrWhiteSpace(variation))
             {
-                html = html.Substring(html.IndexOf(variation.Replace("\\\"", "\"")), html.Length - html.IndexOf(variation.Replace("\\\"", "\"")));
+                html = html.Substring(html.IndexOf(variation), html.Length - html.IndexOf(variation.Replace("\\\"", "\"")));
             }
-            var extractionSnippet = html.Substring(html.IndexOf(extractionLocator), 500);
+            var extractionSnippet = html.Substring(html.IndexOf(extractionLocator), 400);
             extractionSnippet = extractionSnippet.Replace("&pound;", "£");
             var priceSnippet = extractionSnippet.Substring(extractionSnippet.IndexOf("£") + pricePosition, 12);
             var price = priceSnippet.Substring(0, priceSnippet.IndexOf(extractionDelimiter));
