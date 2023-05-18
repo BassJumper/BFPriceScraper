@@ -92,24 +92,23 @@
         StateHasChanged();
         foreach (var product in _products)
         {
-            //product.BFExtractedPrice = await ExtractPrice(product.BFUrl, "<span class=\"price-item price-item--regular\"", "\n", removeVAT: true);
+            product.BFExtractedPrice = await ExtractPrice(product.BFUrl, "<span class=\"price-item price-item--regular\"", "\n", removeVAT: true);
             if (!string.IsNullOrWhiteSpace(product.Competitor1Url))
             {
-                //product.Competitor1ExtractedPrice = await ExtractPrice(product.Competitor1Url, "<span class=\"woocommerce-Price-currencySymbol\">", "</bdi>", 8, variation: product.Competitor1Variation);
+                product.Competitor1ExtractedPrice = await ExtractPrice(product.Competitor1Url, "<span class=\"woocommerce-Price-currencySymbol\">", "</bdi>", 8, variation: product.Competitor1Variation);
             }
             if (!string.IsNullOrWhiteSpace(product.Comptetitor2Url))
             {
                 product.Competitor2ExtractedPrice = await ExtractPrice(product.Comptetitor2Url, "<span class=\"price-excluding-tax\">", " ", variation: product.Competitor2Variation);
                 try
                 {
-                    if (string.IsNullOrWhiteSpace(product.Competitor2ExtractedPrice) || product.Competitor2ExtractedPrice.ToLower().Contains("error"))
+                    if (string.IsNullOrWhiteSpace(product.Competitor2ExtractedPrice) || product.Competitor2ExtractedPrice.ToLower().Contains("error") && !product.Competitor2ExtractedPrice.Contains("PAGE NOT FOUND"))
                     {
                         product.Competitor2ExtractedPrice = await ExtractMCFencePanelPrice(product.Comptetitor2Url, variation: product.Competitor2Variation);
                     }
                 }
                 catch { }
             }
-            _output.Add("BF: " + product.BFExtractedPrice + " - " + "ESM: " + product.Competitor1ExtractedPrice + " - " + "MC: TODO" + product.Competitor2ExtractedPrice);
         }
         _extractingText = "Done - See Output Below";
         await FileUtil.SaveAs(JS, "testoutput2.csv", GetCSVOutputFileBytes());
@@ -143,9 +142,13 @@
         driver.Navigate().GoToUrl(url);
         var element = driver.FindElement(By.Id("attribute173"));
         var dropdown = new SelectElement(element);
-        dropdown.SelectByText(variation);
-        var priceSpan = driver.FindElement(By.Id("price-excluding-tax-42094"));
-        var price = priceSpan.GetAttribute("innerHTML").Substring(1);
+        dropdown.SelectByText(variation.ToLower());
+        var priceSpan = driver.FindElement(By.ClassName("price-excluding-tax"));
+        var priceHtml = priceSpan.GetAttribute("innerHTML").Substring(1);
+        var priceStart = priceHtml.IndexOf("£");
+        var priceCut = priceHtml.Substring(priceStart);
+        var priceEnd = priceCut.IndexOf("</span>");
+        var price = priceCut.Substring(0, priceEnd).Substring(1);
         driver.Quit();
         return Task.FromResult(price);
     }
@@ -180,11 +183,14 @@
                     }
                 }
             }
+            if (string.IsNullOrWhiteSpace(variation) && url.Contains("manninghamconcrete"))
+            {
+                return "VARIATION MUST BE PROVIDED";   
+            }
             if (!string.IsNullOrWhiteSpace(variation) && url.Contains("manninghamconcrete"))
             {
                 bool found = false;
-                //variation = variation.Replace("\\\"", "\"");
-                //variation = variation.Substring(1, variation.Length-5);
+                variation = variation.Replace("\\\"", "\"").Substring(0, variation.Length - 3);
                 if (html.Contains("The page you requested was not found"))
                     return "PAGE NOT FOUND";
                 while (found == false)
@@ -218,11 +224,11 @@
         }
         catch (IndexOutOfRangeException)
         {
-            return "Could not find variant: " + variation;
+            return "VARIANT NOT FOUND";
         }
         catch (Exception ex)
         {
-            return $"Unexpected Error extracting {url} {variation} - " + ex.Message;
+            return $"ERROR: " + ex.Message;
         }
     }
 }
