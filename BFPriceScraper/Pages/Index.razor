@@ -14,7 +14,7 @@
 @inject StateContainer State
 @inject IJSRuntime JS
 
-<PageTitle>BF Price Extractor</PageTitle>
+<PageTitle>BF Price Extractor v1.1</PageTitle>
 
 <h1>BF Price Extractor</h1>
 <p>Upload your CSV and click RUN - once completed the output csv file will be downloaded to your browser.</p>
@@ -24,39 +24,48 @@
 
 <p>@_extractingText</p>
 
-@if (_products.Any() && !_extracting)
-{
-    <h3>Import Preview</h3>
-    <ul>
-        @foreach (var product in _products)
-        {
-            <li>@product.ProductId - @product.BFUrl</li>
-        }
-    </ul>
-}
 <br />
 <br />
-<button @onclick="@(() => Run())" disabled="@(!_products.Any())">RUN</button>
+<button @onclick="@(() => Run())" disabled="@_extracting">RUN</button>
 <br />
 <br />
 
-@if (_output.Any() && !_extracting)
+@if (_extracting)
 {
-    <h3>Extraction Preview - Click download button below to download CSV</h3>
-    <ul>
+    <h3>Extraction in progress...</h3>
+    <p>Once completed an Export CSV will be downloaded automatically for you.</p>
+}
+
+@if (_output.Any())
+{
+   
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 220px">Product Id</th>
+                <th style="width: 220px">BF Price</th>
+                <th style="width: 220px">ESM Price</th>
+                <th style="width: 220px">MC Price</th>
+            </tr>
+        </thead>
         @foreach (var output in _output)
         {
-            <li>@output</li>
+            <tr>
+                <td>@output.ProductId</td>
+                <td>@output.BFExtractedPrice</td>
+                <td>@output.Competitor1ExtractedPrice</td>
+                <td>@output.Competitor2ExtractedPrice</td>
+            </tr>
         }
-    </ul>
+    </table>
 }
 
 @code {
     bool _csvNotLoaded = true;
     bool _extracting;
-    string _extractingText = "Upload file and click Run.  Simples.";
+    string _extractingText = "Upload file and click Run to start extraction";
     List<Product> _products = new List<Product>();
-    List<string> _output = new List<string>();
+    List<Product> _output = new List<Product>();
 
     private async Task LoadFiles(InputFileChangeEventArgs e)
     {
@@ -109,6 +118,8 @@
                 }
                 catch { }
             }
+            _output.Add(product);
+            StateHasChanged();
         }
         _extractingText = "Done - See Output Below";
         await FileUtil.SaveAs(JS, "testoutput2.csv", GetCSVOutputFileBytes());
@@ -137,7 +148,7 @@
     private Task<string> ExtractMCFencePanelPrice(string url, string variation)
     {
         var chromeOptions = new ChromeOptions();
-        //chromeOptions.AddArguments(new List<string>() { "--silent-launch", "--no-startup-window", "no-sandbox", "headless",});
+        chromeOptions.AddArguments(new List<string>() { "--silent-launch", "--no-startup-window", "no-sandbox", "headless",});
         IWebDriver driver = new ChromeDriver(chromeOptions);
         driver.Navigate().GoToUrl(url);
         var element = driver.FindElement(By.Id("attribute173"));
@@ -228,6 +239,8 @@
         }
         catch (Exception ex)
         {
+            if (ex.Message.Contains("StartIndex cannot be less than zero"))
+                return "VARIANT NOT FOUND";
             return $"ERROR: " + ex.Message;
         }
     }
