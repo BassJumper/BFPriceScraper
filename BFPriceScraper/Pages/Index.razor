@@ -78,7 +78,8 @@
             {
                 if (i == 0) continue;
                 var product = new Product();
-                var record = rows[i].Split(',');
+                var cleansedRow = rows[i].Replace(@"\,""", "\\,").Replace(@""""")""", @""")").Replace("\"", "");
+                var record = cleansedRow.Split(',');
                 if (!string.IsNullOrWhiteSpace(record[0]))
                 {
                     product.ProductId = record[0].ToString();

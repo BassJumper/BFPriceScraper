@@ -1,0 +1,15 @@
+<div class="calendar-day-item" b-sntj3bjpks="" style="
+    min-height: 16px !important;
+    height: 17px;
+    border: none !important;
+    /* padding-bottom: 2px; */
+"><div class="activity-colour-tab" style="background: #ffffff;border-right: 1px solid #d5d5d5;/* border: none !important; */" b-sntj3bjpks=""></div><!--!-->
+    <div class="activity-colour-description" b-sntj3bjpks="" style="
+    font-size: 12px;
+    font-weight: bold;
+    padding-top: 0;
+">Click for more ...</div><!--!-->
+    <div class="activity-colour-status" b-sntj3bjpks="" style="
+    width: 20px;
+    border-left: none;
+"></div></div>

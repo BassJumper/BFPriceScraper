@@ -1,0 +1,15 @@
+Feedback Notes
+--------------
+Day Header
+ - DONE: Move the "Day Name e.g. MON" to Header of the Calendar Table Columns
+ - DONE: Change Day header description to be "3/7 complete" (see FeedbackChange.png)
+ - DONE: Remove Day header Colour Tabs and background colour of Day number (see DayHeaderFeedback2.png)
+ - TODO: Clicking on the Day Header will open the Day View modal
+Day Contents
+ - DONE: If more than 3 items 3rd item needs to be "N more..." fake item (DHF3.png)
+ - TODO: Clicking an Item anywhere on that row will navigate to the Activity Schedule Page (For Now)
+ - TODO: Clicking the "N more..." item will open the Day View modal (todo)
+
+    /* font-weight: bold; */
+    color: #040041;
+    font-style: italic;
