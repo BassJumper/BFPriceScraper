@@ -112,7 +112,7 @@
                 product.Competitor2ExtractedPrice = await ExtractPrice(product.Comptetitor2Url, "<span class=\"price-excluding-tax\">", " ", variation: product.Competitor2Variation);
                 try
                 {
-                    if (string.IsNullOrWhiteSpace(product.Competitor2ExtractedPrice) || product.Competitor2ExtractedPrice.ToLower().Contains("error") && !product.Competitor2ExtractedPrice.Contains("PAGE NOT FOUND"))
+                    if (string.IsNullOrWhiteSpace(product.Competitor2ExtractedPrice) || product.Competitor2ExtractedPrice == "VARIANT NOT FOUND" || product.Competitor2ExtractedPrice.ToLower().Contains("error") && !product.Competitor2ExtractedPrice.Contains("PAGE NOT FOUND"))
                     {
                         product.Competitor2ExtractedPrice = await ExtractMCFencePanelPrice(product.Comptetitor2Url, variation: product.Competitor2Variation);
                     }
@@ -246,7 +246,7 @@
             }
             return price;
         }
-        catch (IndexOutOfRangeException)
+        catch (ArgumentOutOfRangeException)
         {
             return "VARIANT NOT FOUND";
         }
